@@ -5,7 +5,7 @@ include_once 'includes/header.php';
 
 // Real-time stats
 $total_volunteers = $conn->query("SELECT COUNT(*) FROM users WHERE role IN ('user','volunteer')")->fetchColumn();
-$total_hours = $conn->query("SELECT SUM(hours_logged) FROM applications WHERE hours_logged > 0")->fetchColumn() ?: 0;
+$total_hours = $conn->query("SELECT COALESCE(SUM(hours_worked),0) FROM applications WHERE hours_approved = 1")->fetchColumn() ?: 0;
 $total_events = $conn->query("SELECT COUNT(*) FROM opportunities")->fetchColumn();
 
 // Upcoming opportunities
@@ -345,18 +345,6 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </section>
 
-<!-- CTA -->
-<section class="container my-5">
-    <div class="cta text-center p-4" data-aos="zoom-in">
-        <h2 class="fw-bold mb-2">Ready to change lives in your neighborhood?</h2>
-        <p class="mb-3">Create an opportunity or join a nearby event — start making impact today.</p>
-        <?php if (!isset($_SESSION['logged_in'])): ?>
-            <a href="auth/register.php" class="btn btn-light btn-custom">Get Started — It's Free</a>
-        <?php else: ?>
-            <a href="public_browse.php" class="btn btn-light btn-custom">Open My Dashboard</a>
-        <?php endif; ?>
-    </div>
-</section>
 
 
 

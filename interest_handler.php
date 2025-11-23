@@ -5,13 +5,14 @@
  */
 
 // Only process if this is a POST request
+$is_ajax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['action'])) {
     if ($is_ajax) {
         header('Content-Type: application/json');
         echo json_encode(['success' => false, 'message' => 'Invalid request method']);
         exit;
     }
-    return; // Exit early if not a POST request with action
+    return; 
 }
 
 if (!isset($_SESSION)) session_start();

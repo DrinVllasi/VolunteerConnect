@@ -1,81 +1,164 @@
 <?php
 session_start();
-require_once 'includes/auth_guard.php';
 require_once 'config/config.php';
+require_once 'includes/auth_guard.php';
 
-// Check access BEFORE including header
-if ($_SESSION['role'] !== 'organization' && $_SESSION['role'] !== 'admin') {
-    $_SESSION['login_errors'] = ["Only organizations can post opportunities."];
-    header('Location: public_browse.php');
-    exit();
+if (!isset($_SESSION['logged_in']) || !in_array($_SESSION['role'], ['organization', 'admin'])) {
+    header('Location: index.php'); exit;
 }
 
-// Handle form submission BEFORE including header
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
-    require_once 'includes/matching_engine.php';
-    
+if ($_POST) {
     $title       = trim($_POST['title']);
     $description = trim($_POST['description']);
-    $category    = trim($_POST['category'] ?? 'General');
-    $location    = trim($_POST['location']);
     $date        = $_POST['date'];
-    $time        = $_POST['time'] ?? null;
-    $slots       = (int)($_POST['slots'] ?? 10);
-    
-    // Auto-detect category if not provided
-    if (empty($category) || $category === 'General') {
-        $category = extractCategory($title, $description);
+    $time        = $_POST['time'] ?: null;
+    $location    = trim($_POST['location_name']);
+    $lat         = $_POST['lat'] ? (float)$_POST['lat'] : null;
+    $lng         = $_POST['lng'] ? (float)$_POST['lng'] : null;
+    $slots       = (int)$_POST['slots'];
+
+    if ($title && $date && $slots > 0 && $lat && $lng && $location) {
+        $stmt = $conn->prepare("INSERT INTO opportunities 
+            (organization_id, title, description, date, time, location, location_name, latitude, longitude, slots, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+        $stmt->execute([$_SESSION['user_id'], $title, $description, $date, $time, $location, $location, $lat, $lng, $slots]);
+        header("Location: manage_events.php?success=1");
+        exit;
+    } else {
+        $error = "Please fill all fields and click on the map to set the exact location.";
     }
-
-    $stmt = $conn->prepare("INSERT INTO opportunities (title, description, category, location, date, time, slots, organization_id) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt->execute([$title, $description, $category, $location, $date, $time, $slots, $_SESSION['user_id']]);
-
-    $_SESSION['opp_success'] = "Opportunity posted successfully!";
-    header('Location: post_opportunity.php');
-    exit();
 }
 
-// Now include header after processing POST (if not redirecting)
 include_once 'includes/header.php';
 ?>
 
-<div class="container"><div class="card shadow p-4">
-    <h2 class="text-center mb-4">Post a Volunteer Opportunity</h2>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <?php if (isset($_SESSION['opp_success'])): ?>
-        <div class="alert alert-success"><?= htmlspecialchars($_SESSION['opp_success']) ?></div>
-        <?php unset($_SESSION['opp_success']); ?>
-    <?php endif; ?>
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h1 class="display-5 fw-bold text-center mb-4">Post a New Opportunity</h1>
 
-    <form action="post_opportunity.php" method="POST">
-        <div class="mb-3"><input type="text" name="title" class="form-control form-control-lg" placeholder="Title (e.g. Food Drive)" required></div>
-        <div class="mb-3"><textarea name="description" class="form-control" rows="5" placeholder="Describe the opportunity..." required></textarea></div>
-        <div class="mb-3">
-            <label class="form-label fw-bold">Category</label>
-            <select name="category" class="form-select" required>
-                <option value="">Select a category...</option>
-                <option value="Environment">Environment</option>
-                <option value="Education">Education</option>
-                <option value="Food Service">Food Service</option>
-                <option value="Healthcare">Healthcare</option>
-                <option value="Community">Community</option>
-                <option value="Children">Children</option>
-                <option value="Animals">Animals</option>
-                <option value="Disaster Relief">Disaster Relief</option>
-                <option value="General">General</option>
-            </select>
-            <small class="text-muted">This helps match the right volunteers to your opportunity</small>
+            <?php if (isset($error)): ?>
+                <div class="alert alert-danger text-center"><?= $error ?></div>
+            <?php endif; ?>
+
+            <form method="POST" class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <div class="row g-4">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold">Event Title</label>
+                            <input type="text" name="title" class="form-control form-control-lg" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Volunteer Slots</label>
+                            <input type="number" name="slots" min="1" max="500" class="form-control form-control-lg" required>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Date</label>
+                            <input type="date" name="date" class="form-control form-control-lg" required min="<?= date('Y-m-d') ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Time (optional)</label>
+                            <input type="time" name="time" class="form-control form-control-lg">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Description</label>
+                            <textarea name="description" rows="4" class="form-control form-control-lg" required></textarea>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Exact Location — Click on the map</label>
+                            <div id="map" style="height: 420px; border-radius: 18px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.12);"></div>
+                            <div class="mt-3 p-3 bg-light rounded">
+                                <strong>Selected Location:</strong> 
+                                <span id="selected_address" class="text-success fw-bold">Click the map to set location</span>
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="location_name" id="location_name">
+                        <input type="hidden" name="lat" id="lat">
+                        <input type="hidden" name="lng" id="lng">
+
+                        <div class="col-12 text-center mt-4">
+                            <button type="submit" class="btn btn-success btn-lg px-5" style="border-radius: 16px;">
+                                Post Opportunity
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
-        <div class="row">
-            <div class="col-md-6 mb-3"><input type="text" name="location" class="form-control" placeholder="Location" required></div>
-            <div class="col-md-4 mb-3"><input type="date" name="date" class="form-control" required></div>
-            <div class="col-md-2 mb-3"><input type="time" name="time" class="form-control"></div>
-        </div>
-        <div class="mb-3"><input type="number" name="slots" class="form-control" placeholder="Available slots (default 10)" min="1" value="10"></div>
-        <div class="d-grid"><button type="submit" name="submit" class="btn btn-primary btn-lg">Post Opportunity</button></div>
-    </form>
-    <div class="text-center mt-3"><a href="public_browse.php" class="btn btn-link">← Back to Dashboard</a></div>
-</div></div>
+    </div>
+</div>
+
+<script>
+let map, marker;
+
+function initMap() {
+    map = L.map('map').setView([42.6629, 21.1655], 12); // Pristina
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    map.on('click', function(e) {
+        if (marker) map.removeLayer(marker);
+        
+        marker = L.marker(e.latlng).addTo(map);
+        
+        document.getElementById('lat').value = e.latlng.lat;
+        document.getElementById('lng').value = e.latlng.lng;
+
+        // Reverse geocoding using Nominatim (free)
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
+            .then(r => r.json())
+            .then(data => {
+                const addr = data.display_name || "Unknown location";
+                document.getElementById('location_name').value = addr;
+                document.getElementById('selected_address').textContent = addr.split(',')[0] + ", " + addr.split(',')[1] + ", " + addr.split(',')[2];
+            })
+            .catch(() => {
+                document.getElementById('selected_address').textContent = e.latlng.lat.toFixed(6) + ", " + e.latlng.lng.toFixed(6);
+                document.getElementById('location_name').value = "Location at " + e.latlng.lat.toFixed(6) + ", " + e.latlng.lng.toFixed(6);
+            });
+    });
+
+    // Optional: Add search
+    const searchControl = L.control({position: 'topright'});
+    searchControl.onAdd = function() {
+        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        div.innerHTML = '<input type="text" id="locationSearch" placeholder="Search location..." style="padding:8px; width:200px; border:none; border-radius:4px;">';
+        return div;
+    };
+    searchControl.addTo(map);
+
+    document.getElementById('locationSearch')?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const query = e.target.value;
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data[0]) {
+                        const lat = data[0].lat;
+                        const lng = data[0].lon;
+                        map.setView([lat, lng], 15);
+                        if (marker) marker.setLatLng([lat, lng]);
+                        else marker = L.marker([lat, lng]).addTo(map);
+                        document.getElementById('lat').value = lat;
+                        document.getElementById('lng').value = lng;
+                        document.getElementById('location_name').value = data[0].display_name;
+                        document.getElementById('selected_address').textContent = data[0].display_name.split(',')[0];
+                    }
+                });
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initMap);
+</script>
 
 <?php include 'includes/footer.php'; ?>

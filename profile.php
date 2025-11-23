@@ -12,25 +12,21 @@ if (!isset($_SESSION['logged_in']) || !$_SESSION['logged_in']) {
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['name'] ?? 'User';
 
-// Get total hours volunteered
-$total_hours_stmt = $conn->prepare("
-    SELECT COALESCE(SUM(hours_logged), 0) as total_hours
-    FROM applications
-    WHERE volunteer_id = ? AND status = 'confirmed' AND hours_logged > 0
-");
-$total_hours_stmt->execute([$user_id]);
-$total_hours = $total_hours_stmt->fetchColumn();
+// CHANGE 1: Get verified hours directly from users table (fast + accurate + approved only)
+$stmt = $conn->prepare("SELECT total_verified_hours FROM users WHERE id = ?");
+$stmt->execute([$user_id]);
+$total_hours = $stmt->fetchColumn() ?: 0;
 
-// Get hours by month for chart
+// CHANGE 2: Hours by month — only approved hours
 $hours_by_month_stmt = $conn->prepare("
     SELECT 
-        DATE_FORMAT(o.date, '%Y-%m') as month,
-        COALESCE(SUM(a.hours_logged), 0) as hours
+        DATE_FORMAT(o.date, '%Y-%m') as month,  
+        COALESCE(SUM(a.hours_worked), 0) as hours
     FROM applications a
     JOIN opportunities o ON a.opportunity_id = o.id
     WHERE a.volunteer_id = ? 
         AND a.status = 'confirmed' 
-        AND a.hours_logged > 0
+        AND a.hours_approved = 1
         AND o.date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY DATE_FORMAT(o.date, '%Y-%m')
     ORDER BY month ASC
@@ -62,7 +58,7 @@ $upcoming_stmt = $conn->prepare("
 $upcoming_stmt->execute([$user_id]);
 $upcoming_events = $upcoming_stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Calculate badges/achievements
+// Calculate badges/achievements (now based on real verified hours)
 $badges = [];
 if ($total_hours >= 100) {
     $badges[] = ['name' => 'Century Volunteer', 'icon' => 'bi-trophy-fill', 'color' => '#FFD700'];
@@ -88,19 +84,10 @@ $pref_stmt = $conn->prepare("SELECT * FROM volunteer_preferences WHERE volunteer
 $pref_stmt->execute([$user_id]);
 $preferences = $pref_stmt->fetch(PDO::FETCH_ASSOC);
 
-// Get preferred categories from preferences
-$preferred_categories = [];
-if ($preferences) {
-    $preferred_categories = json_decode($preferences['preferred_categories'] ?? '[]', true);
-}
+$preferred_categories = $preferences ? json_decode($preferences['preferred_categories'] ?? '[]', true) : [];
+$preferred_skills     = $preferences ? json_decode($preferences['skills'] ?? '[]', true) : [];
 
-// Get skills from preferences
-$preferred_skills = [];
-if ($preferences) {
-    $preferred_skills = json_decode($preferences['skills'] ?? '[]', true);
-}
-
-// Get skills/categories from events (infer from descriptions/titles) - for display alongside preferences
+// CHANGE 3: Infer categories only from approved events
 $skills_stmt = $conn->prepare("
     SELECT DISTINCT 
         CASE 
@@ -113,22 +100,16 @@ $skills_stmt = $conn->prepare("
         END as skill
     FROM applications a
     JOIN opportunities o ON a.opportunity_id = o.id
-    WHERE a.volunteer_id = ? AND a.status = 'confirmed'
+    WHERE a.volunteer_id = ? AND a.status = 'confirmed' AND a.hours_approved = 1
     LIMIT 10
 ");
 $skills_stmt->execute([$user_id]);
-$event_categories = $skills_stmt->fetchAll(PDO::FETCH_COLUMN);
-$event_categories = array_filter(array_unique($event_categories)); // Remove duplicates and empty values
+$event_categories = array_filter(array_unique($skills_stmt->fetchAll(PDO::FETCH_COLUMN)));
 
-// Combine preferred categories with event categories (preferences take priority)
 $all_categories = array_unique(array_merge($preferred_categories, $event_categories));
-$all_categories = array_filter($all_categories); // Remove empty values
+$all_categories = array_filter($all_categories);
 
-// Calculate volunteer level based on hours
-// Level 1: 0-24 hours
-// Level 2: 25-49 hours
-// Level 3: 50-99 hours
-// Level 4: 100+ hours
+// Level system — unchanged
 function getVolunteerLevel($hours) {
     if ($hours >= 100) {
         return ['level' => 4, 'name' => 'Master Volunteer', 'hours_required' => 100, 'next_level_hours' => null];
@@ -143,10 +124,10 @@ function getVolunteerLevel($hours) {
 
 $level_info = getVolunteerLevel($total_hours);
 $level_images = [
-    1 => 'img/engineers.jpg',   // Level 1: Engineers
-    2 => 'img/speedsters.jpg',  // Level 2: Speedsters
-    3 => 'img/shadows.jpg',     // Level 3: Shadows
-    4 => 'img/hipster.jpg'      // Level 4: Hipsters
+    1 => 'img/engineers.jpg',
+    2 => 'img/speedsters.jpg',
+    3 => 'img/shadows.jpg',
+    4 => 'img/hipster.jpg'
 ];
 ?>
 
@@ -354,7 +335,7 @@ $level_images = [
             </div>
         <?php else: ?>
             <div class="level-progress-info">
-                <p class="mb-0"><strong>Maximum Level Achieved!</strong> 🎉</p>
+                <p class="mb-0"><strong>Maximum Level Achieved!</strong></p>
                 <p class="small mt-1 mb-0">You've reached the highest volunteer level with <?= number_format($total_hours) ?> hours!</p>
             </div>
         <?php endif; ?>
@@ -364,8 +345,8 @@ $level_images = [
     <div class="row g-4 mb-4">
         <div class="col-md-4">
             <div class="stat-card text-center">
-                <div class="stat-number"><?= number_format($total_hours) ?></div>
-                <div class="stat-label">Hours Volunteered</div>
+                <div class="stat-number"><?= number_format($total_hours, 1) ?></div>
+                <div class="stat-label">Verified Hours</div>
             </div>
         </div>
         <div class="col-md-4">
@@ -387,7 +368,7 @@ $level_images = [
         <div class="col-lg-8">
             <!-- Hours Chart -->
             <div class="chart-container mb-4">
-                <h4 class="fw-bold mb-3">Hours Volunteered (Last 6 Months)</h4>
+                <h4 class="fw-bold mb-3">Verified Hours (Last 6 Months)</h4>
                 <canvas id="hoursChart" height="250"></canvas>
             </div>
 
@@ -456,7 +437,6 @@ $level_images = [
                     <p class="text-muted small">Your skills and categories will appear here!</p>
                     <a href="volunteer_preferences.php" class="btn btn-sm btn-primary">Set Preferences</a>
                 <?php else: ?>
-                    <!-- Preferred Categories -->
                     <?php if (!empty($all_categories)): ?>
                         <div class="mb-3">
                             <h6 class="fw-bold mb-2 small text-muted">Categories</h6>
@@ -473,7 +453,6 @@ $level_images = [
                         </div>
                     <?php endif; ?>
                     
-                    <!-- Skills -->
                     <?php if (!empty($preferred_skills)): ?>
                         <div>
                             <h6 class="fw-bold mb-2 small text-muted">Skills</h6>
@@ -522,10 +501,8 @@ $level_images = [
     </div>
 </div>
 
-<!-- Chart.js for the hours chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    // Hours Chart
     const ctx = document.getElementById('hoursChart');
     if (ctx) {
         const hoursData = <?= json_encode($hours_by_month) ?>;
@@ -533,14 +510,14 @@ $level_images = [
             const date = new Date(item.month + '-01');
             return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
         });
-        const hours = hoursData.map(item => parseInt(item.hours));
+        const hours = hoursData.map(item => parseFloat(item.hours));
 
         new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Hours',
+                    label: 'Verified Hours',
                     data: hours,
                     borderColor: '#6a8e3a',
                     backgroundColor: 'rgba(106, 142, 58, 0.1)',
@@ -551,23 +528,11 @@ $level_images = [
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1
-                        }
-                    }
-                }
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
             }
         });
     }
 </script>
 
 <?php include 'includes/footer.php'; ?>
-

@@ -10,8 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;800&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    
+
     <style>
+        /* Keep your existing styles here */
         :root{
             --earth-1: #f2efe9;
             --accent-1: #6a8e3a;
@@ -20,9 +21,9 @@
         }
         body { 
             font-family: 'Manrope', 'Inter', sans-serif; 
- background: var(--earth-1); 
- color: #2b2b2b; 
- margin: 0;
+            background: var(--earth-1); 
+            color: #2b2b2b; 
+            margin: 0;
         }
         .navbar {
             height: 86px;
@@ -34,7 +35,6 @@
             z-index: 1000;
             box-shadow: 0 8px 32px rgba(0,0,0,0.04);
         }
-        /* FORCE LOGO TO BE EXACTLY THE SAME EVERYWHERE */
         .navbar-brand {
             font-weight: 800 !important;
             font-size: 1.95rem !important;
@@ -74,53 +74,24 @@
             transform: scale(1.1);
             box-shadow: 0 4px 12px rgba(106, 142, 58, 0.4);
         }
-        a[href="profile.php"]:hover {
-            opacity: 0.8;
-        }
         .btn-login { 
-            font-weight: 600; 
-            padding: 0.7rem 1.6rem; 
-            border-radius: 10px; 
-            border: 1.5px solid var(--accent-1); 
-            color: var(--accent-1); 
-            background: transparent;
-            font-size: 0.95rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            letter-spacing: 0.2px;
+            font-weight: 600; padding: 0.7rem 1.6rem; border-radius: 10px; 
+            border: 1.5px solid var(--accent-1); color: var(--accent-1); background: transparent;
+            font-size: 0.95rem; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .btn-login:hover {
-            background: var(--accent-1);
-            color: white;
-            transform: translateY(-2px);
+            background: var(--accent-1); color: white; transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(106, 142, 58, 0.25);
-            border-color: var(--accent-1);
         }
         .btn-join { 
-            font-weight: 600; 
-            padding: 0.7rem 1.8rem; 
-            border-radius: 10px;
-            background: var(--accent-1); 
-            color: white !important;
-            border: none;
-            font-size: 0.95rem;
+            font-weight: 600; padding: 0.7rem 1.8rem; border-radius: 10px;
+            background: var(--accent-1); color: white !important; border: none;
             box-shadow: 0 2px 8px rgba(106, 142, 58, 0.25);
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            letter-spacing: 0.2px;
         }
         .btn-join:hover { 
-            background: #5a7d32;
-            transform: translateY(-2px); 
+            background: #5a7d32; transform: translateY(-2px); 
             box-shadow: 0 4px 12px rgba(106, 142, 58, 0.35);
-        }
-        .btn-outline-danger.btn-sm {
-            border-radius: 10px;
-            font-weight: 600;
-            padding: 0.5rem 1.2rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn-outline-danger.btn-sm:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
         }
     </style>
 </head>
@@ -128,7 +99,6 @@
 
 <nav class="navbar navbar-expand-lg">
     <div class="container-fluid px-4 px-lg-5">
-        <!-- LOGO — FORCED TO BE IDENTICAL EVERYWHERE -->
         <a class="navbar-brand" href="index.php">
             <i class="bi bi-heart-pulse-fill"></i>
             VolunteerConnect
@@ -144,13 +114,16 @@
                 <li class="nav-item"><a class="nav-link <?= (basename($_SERVER['SCRIPT_NAME']) === 'public_browse.php' ? 'active' : '') ?>" href="public_browse.php">Browse</a></li>
                 
                 <?php if (isset($_SESSION['logged_in'])): ?>
-                    <?php if (in_array($_SESSION['role'] ?? '', ['user','volunteer'])): ?>
-                        <li class="nav-item"><a class="nav-link" href="my_applications.php">My Applications</a></li>
-                        <li class="nav-item"><a class="nav-link" href="my_interests.php">My Interests</a></li>
-                    <?php endif; ?>
-                    <?php if (in_array($_SESSION['role'] ?? '', ['organization','admin'])): ?>
+                    <?php if ($_SESSION['role'] === 'admin'): ?>
+                        <li class="nav-item"><a class="nav-link <?= (basename($_SERVER['SCRIPT_NAME']) === 'admin_dashboard.php' ? 'active' : '') ?>" href="admin/admin_dashboard.php">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="admin/manage_users.php">Manage Users</a></li>
+                        <li class="nav-item"><a class="nav-link" href="admin/manage_organizations.php">Manage Organizations</a></li>
+                    <?php elseif ($_SESSION['role'] === 'organization'): ?>
                         <li class="nav-item"><a class="nav-link" href="post_opportunity.php">Post Event</a></li>
                         <li class="nav-item"><a class="nav-link" href="manage_events.php">Manage Events</a></li>
+                    <?php else: ?>
+                        <li class="nav-item"><a class="nav-link" href="my_applications.php">My Applications</a></li>
+                        <li class="nav-item"><a class="nav-link" href="profile.php">My Profile</a></li>
                     <?php endif; ?>
                 <?php endif; ?>
 
@@ -159,24 +132,14 @@
 
             <div class="d-flex align-items-center gap-3">
                 <?php if (isset($_SESSION['logged_in'])): ?>
-                    <div class="d-flex align-items-center gap-3">
-                        <?php if (in_array($_SESSION['role'] ?? '', ['user', 'volunteer'])): ?>
-                            <a href="profile.php" class="d-flex align-items-center gap-3 text-decoration-none" style="color: inherit;" title="View Profile">
-                                <div class="text-end">
-                                    <div class="fw-bold"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
-                                </div>
-                                <div class="user-avatar"><?= strtoupper(substr($_SESSION['name'] ?? 'U', 0, 2)) ?></div>
-                            </a>
-                        <?php else: ?>
-                            <a href="manage_events.php" class="d-flex align-items-center gap-3 text-decoration-none" style="color: inherit;" title="Manage Events">
-                                <div class="text-end">
-                                    <div class="fw-bold"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
-                                </div>
-                                <div class="user-avatar"><?= strtoupper(substr($_SESSION['name'] ?? 'U', 0, 2)) ?></div>
-                            </a>
-                        <?php endif; ?>
-                        <a href="auth/logout.php" class="btn btn-outline-danger btn-sm">Logout</a>
-                    </div>
+                    <a href="<?= ($_SESSION['role'] === 'admin') ? 'admin/admin_dashboard.php' : '#' ?>" class="d-flex align-items-center gap-3 text-decoration-none" style="color: inherit;" title="Profile / Dashboard">
+                        <div class="text-end">
+                            <div class="fw-bold"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
+                            <div class="small text-muted"><?= ucfirst($_SESSION['role']) ?></div>
+                        </div>
+                        <div class="user-avatar"><?= strtoupper(substr($_SESSION['name'] ?? 'U', 0, 2)) ?></div>
+                    </a>
+                    <a href="auth/logout.php" class="btn btn-outline-danger btn-sm">Logout</a>
                 <?php else: ?>
                     <a href="auth/login.php" class="btn btn-login">Login</a>
                     <a href="auth/register.php" class="btn btn-join">Join Free</a>

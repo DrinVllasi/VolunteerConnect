@@ -1,7 +1,5 @@
 <?php
 // auth/loginLogic.php
-// ← REMOVE any "ini_set display_errors" lines you added before – this version works without them
-
 require_once '../config/config.php';
 
 // Only allow POST
@@ -55,14 +53,15 @@ if ($user && password_verify($password, $user['password'])) {
     session_regenerate_id(true);
     unset($_SESSION[$attempt_key]);
 
-    // Clean role (case-insensitive + trim)
+    // Clean role
     $db_role = trim(strtolower($user['role'] ?? 'volunteer'));
     if ($db_role === 'admin') {
         $final_role = 'admin';
-    } elseif ($db_role === 'organization') {
-        $final_role = 'organization';
+        $redirect_to = '../admin/admin_dashboard.php';
     } else {
-        $final_role = 'volunteer';
+        // volunteers and organizations go to public_browse
+        $final_role = $db_role === 'organization' ? 'organization' : 'volunteer';
+        $redirect_to = '../public_browse.php';
     }
 
     // Save session
@@ -73,9 +72,8 @@ if ($user && password_verify($password, $user['password'])) {
     $_SESSION['logged_in']  = true;
     $_SESSION['login_time'] = time();
 
-
-    // REDIRECT TO DASHBOARD
-    header('Location: ../public_browse.php');
+    // REDIRECT based on role
+    header("Location: $redirect_to");
     exit();
 
 } else {
