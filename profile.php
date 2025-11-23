@@ -83,7 +83,24 @@ if ($total_events >= 1) {
     $badges[] = ['name' => 'First Step', 'icon' => 'bi-check-circle-fill', 'color' => '#4CAF50'];
 }
 
-// Get skills/categories from events (infer from descriptions/titles)
+// Get volunteer preferences
+$pref_stmt = $conn->prepare("SELECT * FROM volunteer_preferences WHERE volunteer_id = ?");
+$pref_stmt->execute([$user_id]);
+$preferences = $pref_stmt->fetch(PDO::FETCH_ASSOC);
+
+// Get preferred categories from preferences
+$preferred_categories = [];
+if ($preferences) {
+    $preferred_categories = json_decode($preferences['preferred_categories'] ?? '[]', true);
+}
+
+// Get skills from preferences
+$preferred_skills = [];
+if ($preferences) {
+    $preferred_skills = json_decode($preferences['skills'] ?? '[]', true);
+}
+
+// Get skills/categories from events (infer from descriptions/titles) - for display alongside preferences
 $skills_stmt = $conn->prepare("
     SELECT DISTINCT 
         CASE 
@@ -100,8 +117,37 @@ $skills_stmt = $conn->prepare("
     LIMIT 10
 ");
 $skills_stmt->execute([$user_id]);
-$skills = $skills_stmt->fetchAll(PDO::FETCH_COLUMN);
-$skills = array_filter(array_unique($skills)); // Remove duplicates and empty values
+$event_categories = $skills_stmt->fetchAll(PDO::FETCH_COLUMN);
+$event_categories = array_filter(array_unique($event_categories)); // Remove duplicates and empty values
+
+// Combine preferred categories with event categories (preferences take priority)
+$all_categories = array_unique(array_merge($preferred_categories, $event_categories));
+$all_categories = array_filter($all_categories); // Remove empty values
+
+// Calculate volunteer level based on hours
+// Level 1: 0-24 hours
+// Level 2: 25-49 hours
+// Level 3: 50-99 hours
+// Level 4: 100+ hours
+function getVolunteerLevel($hours) {
+    if ($hours >= 100) {
+        return ['level' => 4, 'name' => 'Master Volunteer', 'hours_required' => 100, 'next_level_hours' => null];
+    } elseif ($hours >= 50) {
+        return ['level' => 3, 'name' => 'Experienced Volunteer', 'hours_required' => 50, 'next_level_hours' => 100];
+    } elseif ($hours >= 25) {
+        return ['level' => 2, 'name' => 'Active Volunteer', 'hours_required' => 25, 'next_level_hours' => 50];
+    } else {
+        return ['level' => 1, 'name' => 'New Volunteer', 'hours_required' => 0, 'next_level_hours' => 25];
+    }
+}
+
+$level_info = getVolunteerLevel($total_hours);
+$level_images = [
+    1 => 'img/engineers.jpg',   // Level 1: Engineers
+    2 => 'img/speedsters.jpg',  // Level 2: Speedsters
+    3 => 'img/shadows.jpg',     // Level 3: Shadows
+    4 => 'img/hipster.jpg'      // Level 4: Hipsters
+];
 ?>
 
 <style>
@@ -216,6 +262,62 @@ $skills = array_filter(array_unique($skills)); // Remove duplicates and empty va
         box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         height: 300px;
     }
+    
+    .level-display {
+        background: white;
+        border-radius: 18px;
+        padding: 2rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        text-align: center;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .level-display::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 6px;
+        background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+    }
+    
+    .level-image {
+        width: 180px;
+        height: 180px;
+        object-fit: contain;
+        margin: 0 auto 1.5rem;
+        display: block;
+        border-radius: 12px;
+        background: var(--earth-1);
+        padding: 1rem;
+    }
+    
+    .level-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+        color: white;
+        padding: 0.5rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .level-name {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--accent-1);
+        margin-bottom: 0.5rem;
+    }
+    
+    .level-progress-info {
+        color: var(--muted);
+        font-size: 0.95rem;
+        margin-top: 1rem;
+    }
 </style>
 
 <div class="container my-5">
@@ -226,6 +328,36 @@ $skills = array_filter(array_unique($skills)); // Remove duplicates and empty va
         </div>
         <h1 class="display-5 fw-bold mb-2"><?= htmlspecialchars($user_name) ?></h1>
         <p class="lead mb-0">Volunteer Profile</p>
+    </div>
+
+    <!-- Level Display -->
+    <div class="level-display">
+        <?php if (file_exists($level_images[$level_info['level']])): ?>
+            <img src="<?= htmlspecialchars($level_images[$level_info['level']]) ?>" alt="Level <?= $level_info['level'] ?>" class="level-image">
+        <?php else: ?>
+            <div class="level-image d-flex align-items-center justify-content-center" style="background: linear-gradient(135deg, var(--accent-1), var(--accent-2)); color: white; font-size: 4rem; font-weight: bold;">
+                L<?= $level_info['level'] ?>
+            </div>
+        <?php endif; ?>
+        <div class="level-badge">Level <?= $level_info['level'] ?></div>
+        <div class="level-name"><?= htmlspecialchars($level_info['name']) ?></div>
+        <?php if ($level_info['next_level_hours'] !== null): 
+            $hours_needed = $level_info['next_level_hours'] - $total_hours;
+            $progress_to_next = (($total_hours - $level_info['hours_required']) / ($level_info['next_level_hours'] - $level_info['hours_required'])) * 100;
+        ?>
+            <div class="level-progress-info">
+                <p class="mb-2"><strong><?= number_format($hours_needed) ?></strong> more hours to reach Level <?= $level_info['level'] + 1 ?></p>
+                <div class="progress-bar-custom" style="max-width: 400px; margin: 0 auto;">
+                    <div class="progress-fill" style="width: <?= min(100, max(0, $progress_to_next)) ?>%"></div>
+                </div>
+                <p class="small mt-2 mb-0"><?= number_format($total_hours) ?> / <?= $level_info['next_level_hours'] ?> hours</p>
+            </div>
+        <?php else: ?>
+            <div class="level-progress-info">
+                <p class="mb-0"><strong>Maximum Level Achieved!</strong> 🎉</p>
+                <p class="small mt-1 mb-0">You've reached the highest volunteer level with <?= number_format($total_hours) ?> hours!</p>
+            </div>
+        <?php endif; ?>
     </div>
 
     <!-- Stats Row -->
@@ -311,39 +443,80 @@ $skills = array_filter(array_unique($skills)); // Remove duplicates and empty va
                 <?php endif; ?>
             </div>
 
-            <!-- Skills -->
+            <!-- Skills & Categories -->
             <div class="stat-card">
-                <h4 class="fw-bold mb-3">Skills & Categories</h4>
-                <?php if (empty($skills)): ?>
-                    <p class="text-muted small">Your skills will appear here as you volunteer!</p>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="fw-bold mb-0">Skills & Categories</h4>
+                    <a href="volunteer_preferences.php" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-gear"></i> Edit
+                    </a>
+                </div>
+                
+                <?php if (empty($all_categories) && empty($preferred_skills)): ?>
+                    <p class="text-muted small">Your skills and categories will appear here!</p>
+                    <a href="volunteer_preferences.php" class="btn btn-sm btn-primary">Set Preferences</a>
                 <?php else: ?>
-                    <div>
-                        <?php foreach ($skills as $skill): ?>
-                            <span class="skill-tag"><?= htmlspecialchars($skill) ?></span>
-                        <?php endforeach; ?>
-                    </div>
+                    <!-- Preferred Categories -->
+                    <?php if (!empty($all_categories)): ?>
+                        <div class="mb-3">
+                            <h6 class="fw-bold mb-2 small text-muted">Categories</h6>
+                            <div>
+                                <?php foreach ($all_categories as $cat): ?>
+                                    <span class="skill-tag" style="<?= in_array($cat, $preferred_categories) ? 'border: 2px solid var(--accent-1);' : '' ?>">
+                                        <?= htmlspecialchars($cat) ?>
+                                        <?php if (in_array($cat, $preferred_categories)): ?>
+                                            <i class="bi bi-star-fill ms-1" style="font-size: 0.7rem;"></i>
+                                        <?php endif; ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <!-- Skills -->
+                    <?php if (!empty($preferred_skills)): ?>
+                        <div>
+                            <h6 class="fw-bold mb-2 small text-muted">Skills</h6>
+                            <div>
+                                <?php foreach ($preferred_skills as $skill): ?>
+                                    <span class="skill-tag" style="background: var(--accent-2);">
+                                        <?= htmlspecialchars($skill) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
 
-            <!-- Progress to Next Badge -->
+            <!-- All Levels Preview -->
             <div class="stat-card mt-4">
-                <h5 class="fw-bold mb-3">Progress</h5>
-                <?php
-                $next_milestone = 25;
-                if ($total_hours >= 100) {
-                    $next_milestone = 200;
-                } elseif ($total_hours >= 50) {
-                    $next_milestone = 100;
-                } elseif ($total_hours >= 25) {
-                    $next_milestone = 50;
-                }
-                $progress = $next_milestone > 0 ? min(100, ($total_hours / $next_milestone) * 100) : 0;
-                ?>
-                <p class="small text-muted mb-2">Next milestone: <?= $next_milestone ?> hours</p>
-                <div class="progress-bar-custom">
-                    <div class="progress-fill" style="width: <?= $progress ?>%"></div>
+                <h5 class="fw-bold mb-3">Level Progression</h5>
+                <div class="small">
+                    <?php for ($lvl = 1; $lvl <= 4; $lvl++): 
+                        $lvl_hours = [1 => 0, 2 => 25, 3 => 50, 4 => 100];
+                        $lvl_names = [1 => 'New Volunteer', 2 => 'Active Volunteer', 3 => 'Experienced Volunteer', 4 => 'Master Volunteer'];
+                        $is_unlocked = $total_hours >= $lvl_hours[$lvl];
+                        $is_current = $level_info['level'] == $lvl;
+                    ?>
+                        <div class="d-flex align-items-center mb-2 p-2 rounded <?= $is_current ? 'bg-light' : '' ?>" style="<?= $is_current ? 'border: 2px solid var(--accent-1);' : '' ?>">
+                            <div class="me-2">
+                                <?php if ($is_unlocked): ?>
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                <?php else: ?>
+                                    <i class="bi bi-circle text-muted"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="flex-grow-1">
+                                <strong>Level <?= $lvl ?>:</strong> <?= $lvl_names[$lvl] ?>
+                                <span class="text-muted">(<?= $lvl_hours[$lvl] ?>+ hours)</span>
+                                <?php if ($is_current): ?>
+                                    <span class="badge bg-success ms-2">Current</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endfor; ?>
                 </div>
-                <p class="small text-muted mt-2 mb-0"><?= number_format($total_hours) ?> / <?= $next_milestone ?> hours</p>
             </div>
         </div>
     </div>

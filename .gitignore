@@ -1,0 +1,47 @@
+# PHP
+*.log
+*.cache
+*.tmp
+*.swp
+*.bak
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database files (local development)
+*.sqlite
+*.db
+*.sql.backup
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# XAMPP specific
+/xampp/
+/htdocs/
+
+# Temporary files
+*.tmp
+temp/
+tmp/
+
+# Node.js (if used)
+node_modules/
+npm-debug.log*
+
+# Composer (if used)
+vendor/
+composer.lock

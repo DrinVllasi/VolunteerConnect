@@ -146,6 +146,7 @@
                 <?php if (isset($_SESSION['logged_in'])): ?>
                     <?php if (in_array($_SESSION['role'] ?? '', ['user','volunteer'])): ?>
                         <li class="nav-item"><a class="nav-link" href="my_applications.php">My Applications</a></li>
+                        <li class="nav-item"><a class="nav-link" href="my_interests.php">My Interests</a></li>
                     <?php endif; ?>
                     <?php if (in_array($_SESSION['role'] ?? '', ['organization','admin'])): ?>
                         <li class="nav-item"><a class="nav-link" href="post_opportunity.php">Post Event</a></li>
@@ -159,12 +160,21 @@
             <div class="d-flex align-items-center gap-3">
                 <?php if (isset($_SESSION['logged_in'])): ?>
                     <div class="d-flex align-items-center gap-3">
-                        <a href="profile.php" class="d-flex align-items-center gap-3 text-decoration-none" style="color: inherit;" title="View Profile">
-                            <div class="text-end">
-                                <div class="fw-bold"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
-                            </div>
-                            <div class="user-avatar"><?= strtoupper(substr($_SESSION['name'] ?? 'U', 0, 2)) ?></div>
-                        </a>
+                        <?php if (in_array($_SESSION['role'] ?? '', ['user', 'volunteer'])): ?>
+                            <a href="profile.php" class="d-flex align-items-center gap-3 text-decoration-none" style="color: inherit;" title="View Profile">
+                                <div class="text-end">
+                                    <div class="fw-bold"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
+                                </div>
+                                <div class="user-avatar"><?= strtoupper(substr($_SESSION['name'] ?? 'U', 0, 2)) ?></div>
+                            </a>
+                        <?php else: ?>
+                            <a href="manage_events.php" class="d-flex align-items-center gap-3 text-decoration-none" style="color: inherit;" title="Manage Events">
+                                <div class="text-end">
+                                    <div class="fw-bold"><?= htmlspecialchars($_SESSION['name'] ?? 'User') ?></div>
+                                </div>
+                                <div class="user-avatar"><?= strtoupper(substr($_SESSION['name'] ?? 'U', 0, 2)) ?></div>
+                            </a>
+                        <?php endif; ?>
                         <a href="auth/logout.php" class="btn btn-outline-danger btn-sm">Logout</a>
                     </div>
                 <?php else: ?>

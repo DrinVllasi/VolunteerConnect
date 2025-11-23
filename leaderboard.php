@@ -2,6 +2,30 @@
 session_start();
 require_once 'config/config.php';
 include_once 'includes/header.php';
+
+// Calculate volunteer level based on hours
+// Level 1: 0-24 hours
+// Level 2: 25-49 hours
+// Level 3: 50-99 hours
+// Level 4: 100+ hours
+function getVolunteerLevel($hours) {
+    if ($hours >= 100) {
+        return ['level' => 4, 'name' => 'Master Volunteer', 'hours_required' => 100, 'next_level_hours' => null];
+    } elseif ($hours >= 50) {
+        return ['level' => 3, 'name' => 'Experienced Volunteer', 'hours_required' => 50, 'next_level_hours' => 100];
+    } elseif ($hours >= 25) {
+        return ['level' => 2, 'name' => 'Active Volunteer', 'hours_required' => 25, 'next_level_hours' => 50];
+    } else {
+        return ['level' => 1, 'name' => 'New Volunteer', 'hours_required' => 0, 'next_level_hours' => 25];
+    }
+}
+
+$level_images = [
+    1 => 'img/engineers.jpg',   // Level 1: Engineers
+    2 => 'img/speedsters.jpg',  // Level 2: Speedsters
+    3 => 'img/shadows.jpg',     // Level 3: Shadows
+    4 => 'img/hipster.jpg'      // Level 4: Hipsters
+];
 ?>
 
 <div class="container py-5">
@@ -69,14 +93,36 @@ include_once 'includes/header.php';
                                 #<?= $rank ?>
                             </div>
 
-                            <!-- Avatar -->
-                            <div class="mx-auto mb-3 rounded-circle d-flex align-items-center justify-content-center text-white fw-bold shadow-lg"
-                                 style="width: 90px; height: 90px; font-size: 2.5rem;
-                                        background: linear-gradient(135deg, #8b5cf6, #ec4899);">
-                                <?= strtoupper(substr($vol['name'], 0, 2)) ?>
+                            <!-- Level Image -->
+                            <?php 
+                            $vol_level = getVolunteerLevel($vol['total_hours']);
+                            $level_img = $level_images[$vol_level['level']];
+                            ?>
+                            <div class="mx-auto mb-3 position-relative">
+                                <?php if (file_exists($level_img)): ?>
+                                    <img src="<?= htmlspecialchars($level_img) ?>" 
+                                         alt="Level <?= $vol_level['level'] ?>" 
+                                         class="leaderboard-level-img">
+                                <?php else: ?>
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold shadow-lg"
+                                         style="width: 120px; height: 120px; font-size: 2.5rem;
+                                                background: linear-gradient(135deg, #8b5cf6, #ec4899);">
+                                        <?= strtoupper(substr($vol['name'], 0, 2)) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <!-- Level Badge -->
+                                <div class="position-absolute bottom-0 start-50 translate-middle-x">
+                                    <span class="badge rounded-pill px-3 py-2" 
+                                          style="background: linear-gradient(135deg, #6a8e3a, #b27a4b); color: white; font-weight: 700; font-size: 0.85rem;">
+                                        L<?= $vol_level['level'] ?>
+                                    </span>
+                                </div>
                             </div>
 
                             <h4 class="fw-bold mb-1"><?= htmlspecialchars($vol['name']) ?></h4>
+                            <p class="text-muted small mb-2">
+                                <strong><?= htmlspecialchars($vol_level['name']) ?></strong>
+                            </p>
                             <p class="text-muted small mb-3">
                                 <?= $vol['events_done'] ?> event<?= $vol['events_done'] == 1 ? '' : 's' ?>
                             </p>
@@ -105,12 +151,31 @@ include_once 'includes/header.php';
 </div>
 
 <style>
+    :root{
+        --accent-1: #6a8e3a;
+        --accent-2: #b27a4b;
+    }
+    
     .transform-hover {
         transition: all 0.4s ease;
     }
     .transform-hover:hover {
         transform: translateY(-12px) scale(1.02);
         box-shadow: 0 30px 60px rgba(0,0,0,0.18) !important;
+    }
+    
+    .leaderboard-level-img {
+        width: 120px;
+        height: 120px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 4px solid white;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        transition: transform 0.3s ease;
+    }
+    
+    .transform-hover:hover .leaderboard-level-img {
+        transform: scale(1.1);
     }
 </style>
 

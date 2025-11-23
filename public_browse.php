@@ -9,6 +9,13 @@ $user_role    = $_SESSION['role'] ?? null;
 
 // Block admins & organizations
 define('IS_BLOCKED_USER', ($is_logged_in && in_array($user_role, ['admin', 'organization'])));
+
+// Get recommended opportunities for logged-in volunteers
+$recommended_opportunities = [];
+if ($is_logged_in && in_array($user_role, ['user', 'volunteer']) && $user_id) {
+    require_once 'includes/matching_engine.php';
+    $recommended_opportunities = getRecommendedOpportunities($conn, $user_id, 6);
+}
 ?>
 
 <style>
@@ -190,6 +197,143 @@ define('IS_BLOCKED_USER', ($is_logged_in && in_array($user_role, ['admin', 'orga
         <p class="page-subtitle">Find something meaningful to do in your community</p>
     </div>
 
+    <?php if (!empty($recommended_opportunities)): ?>
+        <div class="mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 class="fw-bold">
+                    <i class="bi bi-star-fill text-warning"></i> Recommended for You
+                </h3>
+                <a href="volunteer_preferences.php" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-gear"></i> Update Preferences
+                </a>
+            </div>
+            <p class="text-muted mb-4">These opportunities match your skills, interests, and experience level.</p>
+            <div class="row g-4 mb-5">
+                <?php 
+                require_once 'includes/matching_engine.php';
+                foreach ($recommended_opportunities as $rec): 
+                    $opp = $rec['opportunity'];
+                    $spots_left = max(0, (int)$opp['spots_left']);
+                    $has_interest = $is_logged_in && in_array($user_role, ['user', 'volunteer']) ? hasVolunteerInterest($conn, $user_id, $opp['id']) : false;
+                    $has_invite = $is_logged_in && in_array($user_role, ['user', 'volunteer']) ? hasOrganizationInvite($conn, $opp['organization_id'], $user_id, $opp['id']) : false;
+                    $has_applied = false;
+                    if ($is_logged_in && $user_id) {
+                        $check_app = $conn->prepare("SELECT status FROM applications WHERE opportunity_id = ? AND volunteer_id = ?");
+                        $check_app->execute([$opp['id'], $user_id]);
+                        $has_applied = $check_app->fetch() !== false;
+                    }
+                ?>
+                    <div class="col-md-6 col-lg-4">
+                        <div class="opp-card h-100 d-flex flex-column">
+
+                            <div class="d-flex align-items-start gap-3 flex-grow-1">
+                                <div style="width:78px; height:78px; border-radius:12px; background: linear-gradient(120deg, #f7f4ef, #eef6ea); display:flex; align-items:center; justify-content:center; flex-shrink: 0;">
+                                    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L12 22" stroke="#6A8E3A" stroke-width="1.6" stroke-linecap="round"/><path d="M2 12L22 12" stroke="#B27A4B" stroke-width="1.6" stroke-linecap="round"/></svg>
+                                </div>
+                                <div class="flex-grow-1 d-flex flex-column">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div style="min-width: 0; flex: 1;">
+                                            <h5 class="card-title mb-1"><?= htmlspecialchars($opp['title']) ?></h5>
+                                            <div class="small text-muted" style="white-space: nowrap;">by <span class="org-badge"><?= htmlspecialchars($opp['org_name'] ?? 'Unknown') ?></span></div>
+                                        </div>
+                                        <div class="text-end small text-muted">
+                                            <?php if ($has_invite && $has_invite['status'] === 'pending'): ?>
+                                                <span class="badge bg-success mb-1 d-block" style="font-size: 0.7rem;">Invited!</span>
+                                            <?php elseif ($has_interest): ?>
+                                                <span class="badge bg-info mb-1 d-block" style="font-size: 0.7rem;">Interested</span>
+                                            <?php endif; ?>
+                                            <?= date('M j, Y', strtotime($opp['date'])) ?>
+                                        </div>
+                                    </div>
+                                    
+                                    <p class="card-text small text-muted mb-3"><?= htmlspecialchars(substr($opp['description'], 0, 150)) ?><?= strlen($opp['description']) > 150 ? '...' : '' ?></p>
+
+                                    <ul class="list-unstyled mb-3 details">
+                                        <li><i class="bi bi-geo-alt-fill"></i> <?= htmlspecialchars($opp['location']) ?></li>
+                                        <li>
+                                            <i class="bi bi-calendar-event"></i>
+                                            <?= date('F j, Y', strtotime($opp['date'])) ?>
+                                            <?= $opp['time'] ? ' • '.date('g:i A', strtotime($opp['time'])) : '' ?>
+                                        </li>
+                                    </ul>
+
+                                    <?php
+                                    $slots = (int)$opp['slots'];
+                                    $filled = max(0, $slots - $spots_left);
+                                    $percent = $slots > 0 ? round(($filled / $slots) * 100) : 0;
+                                    ?>
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <div style="width:60%;">
+                                            <div class="progress progress-spot bg-light" style="height:10px;">
+                                                <div class="progress-bar" role="progressbar" style="width: <?= $percent ?>%; background-color: var(--accent-1);" aria-valuenow="<?= $percent ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                            </div>
+                                            <div class="small text-muted mt-1">
+                                                <?php if ($spots_left > 0): ?>
+                                                    <?= $spots_left ?>/<?= $slots ?> spots left
+                                                <?php else: ?>
+                                                    <span class="badge-full">Full</span>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-auto pt-3 border-top">
+
+                                <?php if (!$is_logged_in): ?>
+
+                                    <a href="auth/login.php" class="btn btn-main w-100">Login to Sign Up</a>
+
+                                <?php elseif (IS_BLOCKED_USER): ?>
+
+                                    <button class="btn-disabled w-100" disabled>Admins & Organizations Cannot Apply</button>
+
+                                <?php else: ?>
+
+                                    <?php if ($has_invite && $has_invite['status'] === 'pending'): ?>
+                                        <div class="alert alert-success p-2 mb-2">
+                                            <small><i class="bi bi-star-fill"></i> <strong>You've been invited!</strong></small>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if ($has_applied): ?>
+                                        <div class="badge bg-warning w-100 text-center py-2">Already Applied</div>
+
+                                    <?php elseif ($opp['spots_left'] <= 0): ?>
+                                        <div class="badge bg-danger w-100 text-center py-2">Event Full</div>
+
+                                    <?php else: ?>
+                                        <div class="d-flex flex-column gap-2">
+                                            <form method="POST" action="includes/apply_handler.php">
+                                                <input type="hidden" name="opp_id" value="<?= $opp['id'] ?>">
+                                                <button type="submit" class="btn btn-main w-100">Sign Me Up!</button>
+                                            </form>
+                                            <?php if (!$has_interest): ?>
+                                                <form method="POST" action="interest_handler.php">
+                                                    <input type="hidden" name="action" value="express_interest">
+                                                    <input type="hidden" name="opportunity_id" value="<?= $opp['id'] ?>">
+                                                    <button type="submit" class="btn btn-outline-primary w-100" title="Express Interest">
+                                                        <i class="bi bi-heart"></i> Express Interest
+                                                    </button>
+                                                </form>
+                                            <?php else: ?>
+                                                <div class="badge bg-info w-100 text-center py-2">
+                                                    <i class="bi bi-heart-fill"></i> Interested
+                                                </div>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                            </div>
+
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <?php
     $stmt = $conn->prepare("
         SELECT o.*, u.name AS org_name,
@@ -215,11 +359,11 @@ define('IS_BLOCKED_USER', ($is_logged_in && in_array($user_role, ['admin', 'orga
                 <div class="col-md-6 col-lg-4">
                     <div class="opp-card h-100 d-flex flex-column">
 
-                        <div class="d-flex align-items-start gap-3">
+                        <div class="d-flex align-items-start gap-3 flex-grow-1">
                             <div style="width:78px; height:78px; border-radius:12px; background: linear-gradient(120deg, #f7f4ef, #eef6ea); display:flex; align-items:center; justify-content:center; flex-shrink: 0;">
                                 <svg width="34" height="34" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L12 22" stroke="#6A8E3A" stroke-width="1.6" stroke-linecap="round"/><path d="M2 12L22 12" stroke="#B27A4B" stroke-width="1.6" stroke-linecap="round"/></svg>
                             </div>
-                            <div class="flex-grow-1">
+                            <div class="flex-grow-1 d-flex flex-column">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <div style="min-width: 0; flex: 1;">
                                         <h5 class="card-title mb-1"><?= htmlspecialchars($opp['title']) ?></h5>
@@ -273,27 +417,50 @@ define('IS_BLOCKED_USER', ($is_logged_in && in_array($user_role, ['admin', 'orga
                                 <button class="btn-disabled w-100" disabled>Admins & Organizations Cannot Apply</button>
 
                             <?php else: ?>
-
                                 <?php
+                                require_once 'includes/matching_engine.php';
                                 $check = $conn->prepare("SELECT status FROM applications WHERE opportunity_id = ? AND volunteer_id = ?");
                                 $check->execute([$opp['id'], $user_id]);
                                 $applied = $check->fetch();
+                                $has_interest = hasVolunteerInterest($conn, $user_id, $opp['id']);
+                                $has_invite = hasOrganizationInvite($conn, $opp['organization_id'], $user_id, $opp['id']);
                                 ?>
 
+                                <?php if ($has_invite && $has_invite['status'] === 'pending'): ?>
+                                    <div class="alert alert-success p-2 mb-2">
+                                        <small><i class="bi bi-star-fill"></i> <strong>You've been invited!</strong></small>
+                                    </div>
+                                <?php endif; ?>
+
                                 <?php if ($applied && $applied['status'] === 'confirmed'): ?>
-                                    <button class="btn-success-custom w-100" disabled>Confirmed</button>
+                                    <div class="badge bg-success w-100 text-center py-2">Confirmed</div>
 
                                 <?php elseif ($applied): ?>
-                                    <button class="btn-warning-custom w-100" disabled>Pending Approval</button>
+                                    <div class="badge bg-warning w-100 text-center py-2">Pending Approval</div>
 
                                 <?php elseif ($opp['spots_left'] <= 0): ?>
-                                    <button class="btn-danger-custom w-100" disabled>Event Full</button>
+                                    <div class="badge bg-danger w-100 text-center py-2">Event Full</div>
 
                                 <?php else: ?>
-                                    <form method="POST" action="includes/apply_handler.php" class="apply-form" data-opp-id="<?= $opp['id'] ?>">
-                                        <input type="hidden" name="opp_id" value="<?= $opp['id'] ?>">
-                                        <button type="submit" class="btn btn-main w-100 apply-btn">Sign Me Up!</button>
-                                    </form>
+                                    <div class="d-flex flex-column gap-2">
+                                        <form method="POST" action="includes/apply_handler.php">
+                                            <input type="hidden" name="opp_id" value="<?= $opp['id'] ?>">
+                                            <button type="submit" class="btn btn-main w-100">Sign Me Up!</button>
+                                        </form>
+                                        <?php if (!$has_interest): ?>
+                                            <form method="POST" action="interest_handler.php">
+                                                <input type="hidden" name="action" value="express_interest">
+                                                <input type="hidden" name="opportunity_id" value="<?= $opp['id'] ?>">
+                                                <button type="submit" class="btn btn-outline-primary w-100" title="Express Interest">
+                                                    <i class="bi bi-heart"></i> Express Interest
+                                                </button>
+                                            </form>
+                                        <?php else: ?>
+                                            <div class="badge bg-info w-100 text-center py-2">
+                                                <i class="bi bi-heart-fill"></i> Interested
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
                                 <?php endif; ?>
                             <?php endif; ?>
                         </div>
@@ -307,70 +474,6 @@ define('IS_BLOCKED_USER', ($is_logged_in && in_array($user_role, ['admin', 'orga
 </div>
 
 <script>
-    // Handle AJAX form submissions for applying to opportunities
-    document.addEventListener('DOMContentLoaded', function() {
-        const applyForms = document.querySelectorAll('.apply-form');
-        
-        applyForms.forEach(function(form) {
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const formData = new FormData(form);
-                const button = form.querySelector('.apply-btn');
-                const originalText = button.textContent;
-                
-                // Disable button and show loading state
-                button.disabled = true;
-                button.textContent = 'Applying...';
-                
-                // Send AJAX request
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', form.action, true);
-                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-                
-                xhr.onload = function() {
-                    if (xhr.status === 200) {
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            
-                            if (response.success) {
-                                // Update button to show applied state
-                                button.textContent = 'You applied! Waiting for response...';
-                                button.classList.remove('btn-main');
-                                button.classList.add('btn-warning-custom');
-                                button.disabled = true;
-                                
-                                // Remove form functionality
-                                form.onsubmit = function(e) { e.preventDefault(); return false; };
-                            } else {
-                                // Show error but keep button enabled
-                                alert(response.message);
-                                button.disabled = false;
-                                button.textContent = originalText;
-                            }
-                        } catch (e) {
-                            console.error('Error parsing response:', e);
-                            alert('An error occurred. Please try again.');
-                            button.disabled = false;
-                            button.textContent = originalText;
-                        }
-                    } else {
-                        alert('An error occurred. Please try again.');
-                        button.disabled = false;
-                        button.textContent = originalText;
-                    }
-                };
-                
-                xhr.onerror = function() {
-                    alert('Network error. Please try again.');
-                    button.disabled = false;
-                    button.textContent = originalText;
-                };
-                
-                xhr.send(formData);
-            });
-        });
-    });
 </script>
 
 <?php include 'includes/footer.php'; ?>
