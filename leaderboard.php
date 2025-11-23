@@ -17,12 +17,19 @@ $level_images = [
     4 => 'img/hipster.jpg'
 ];
 
-// ALL-TIME LEADERBOARD — uses real verified hours
+// CORRECT QUERY — gets real verified hours from applications table
 $stmt = $conn->prepare("
-    SELECT name, total_verified_hours 
-    FROM users 
-    WHERE total_verified_hours > 0
-    ORDER BY total_verified_hours DESC 
+    SELECT 
+        u.name,
+        COALESCE(SUM(a.hours_worked), 0) AS total_hours
+    FROM users u
+    LEFT JOIN applications a ON u.id = a.volunteer_id 
+        AND a.status = 'completed' 
+        AND a.hours_approved = 1
+    WHERE u.role IN ('volunteer', 'user')
+    GROUP BY u.id, u.name
+    HAVING total_hours > 0
+    ORDER BY total_hours DESC, u.name ASC
     LIMIT 15
 ");
 $stmt->execute();
@@ -45,8 +52,8 @@ $leaders = $stmt->fetchAll(PDO::FETCH_ASSOC);
     <?php else: ?>
         <div class="row g-4 justify-content-center">
             <?php $rank = 1; foreach ($leaders as $vol): 
-                $level = getVolunteerLevel($vol['total_verified_hours']);
-                $level_img = $level_images[$level['level']];
+                $level = getVolunteerLevel($vol['total_hours']);
+                $level_img = $level_images[$level['level']] ?? 'img/engineers.jpg';
             ?>
                 <div class="col-md-6 col-lg-4 col-xl-3">
                     <div class="card h-100 shadow-lg border-0 position-relative overflow-hidden 
@@ -89,13 +96,13 @@ $leaders = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                             <div class="bg-light rounded-pill overflow-hidden mb-3" style="height: 28px;">
                                 <div class="h-100 d-flex align-items-center justify-content-center text-white fw-bold"
-                                     style="width: <?= min(100, ($vol['total_verified_hours'] / 300) * 100) ?>%; 
+                                     style="width: <?= min(100, ($vol['total_hours'] / 300) * 100) ?>%; 
                                             background: linear-gradient(90deg, #667eea, #764ba2);">
-                                    <?= number_format($vol['total_verified_hours'], 1) ?> hrs
+                                    <?= number_format($vol['total_hours'], 1) ?> hrs
                                 </div>
                             </div>
 
-                            <p class="fw-bold text-primary fs-3 mb-0"><?= number_format($vol['total_verified_hours'], 1) ?></p>
+                            <p class="fw-bold text-primary fs-3 mb-0"><?= number_format($vol['total_hours'], 1) ?></p>
                             <small class="text-muted">verified hours</small>
                         </div>
                     </div>

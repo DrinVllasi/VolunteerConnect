@@ -127,7 +127,6 @@ header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-i
     </form>
 
     <a href="login.php">Already have an account? Login here</a>
-    <a href="register_org.php">Are you an organization? Register here</a>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

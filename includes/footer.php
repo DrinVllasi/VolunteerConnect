@@ -1,9 +1,13 @@
 <footer class="bg-dark text-white py-5 mt-5">
     <div class="container">
         <div class="row g-5">
+
+            <!-- Brand -->
             <div class="col-lg-4">
                 <h4><i class="bi bi-heart-fill text-danger"></i> VolunteerConnect</h4>
-                <p class="text-light">Connecting passionate volunteers with meaningful opportunities to make a real difference in communities.</p>
+                <p class="text-light">
+                    Helping volunteers discover meaningful community opportunities.
+                </p>
                 <div class="social-links mt-3">
                     <a href="#" class="text-white me-3 fs-4"><i class="bi bi-facebook"></i></a>
                     <a href="#" class="text-white me-3 fs-4"><i class="bi bi-instagram"></i></a>
@@ -12,27 +16,30 @@
                 </div>
             </div>
 
+            <!-- Useful Links -->
             <div class="col-lg-2 col-md-6">
-                <h6 class="fw-bold text-uppercase">Explore</h6>
+                <h6 class="fw-bold text-uppercase">Quick Links</h6>
                 <ul class="list-unstyled">
-                    <li><a href="../dashboard/browse_opportunities.php" class="text-light text-decoration-none">Find Opportunities</a></li>
-                    <li><a href="#" class="text-light text-decoration-none">How It Works</a></li>
-                    <li><a href="#" class="text-light text-decoration-none">Success Stories</a></li>
+                    <li><a href="../dashboard/dashboard.php" class="text-light text-decoration-none">Dashboard</a></li>
+                    <li><a href="../dashboard/browse_opportunities.php" class="text-light text-decoration-none">Browse</a></li>
+                    <li><a href="../dashboard/saved.php" class="text-light text-decoration-none">Saved</a></li>
                 </ul>
             </div>
 
+            <!-- Resources -->
             <div class="col-lg-2 col-md-6">
-                <h6 class="fw-bold text-uppercase">Company</h6>
+                <h6 class="fw-bold text-uppercase">Resources</h6>
                 <ul class="list-unstyled">
-                    <li><a href="#" class="text-light text-decoration-none">About Us</a></li>
-                    <li><a href="#" class="text-light text-decoration-none">Contact</a></li>
+                    <li><a href="#" class="text-light text-decoration-none">FAQ</a></li>
+                    <li><a href="#" class="text-light text-decoration-none">Terms of Service</a></li>
                     <li><a href="#" class="text-light text-decoration-none">Privacy Policy</a></li>
                 </ul>
             </div>
 
+            <!-- Newsletter -->
             <div class="col-lg-4">
                 <h6 class="fw-bold text-uppercase">Stay Updated</h6>
-                <p>Get the latest volunteer opportunities in your inbox.</p>
+                <p>Get new volunteer opportunities weekly.</p>
                 <form class="d-flex">
                     <input type="email" class="form-control me-2" placeholder="Your email">
                     <button class="btn btn-primary" type="submit">Subscribe</button>
@@ -43,7 +50,9 @@
         <hr class="my-4 border-secondary">
 
         <div class="text-center">
-            <p class="mb-0">&copy; <?= date('Y') ?> VolunteerConnect. Made with <i class="bi bi-heart-fill text-danger"></i> for the community.</p>
+            <p class="mb-0">&copy; <?= date('Y') ?> VolunteerConnect. Made with 
+                <i class="bi bi-heart-fill text-danger"></i> for the community.
+            </p>
         </div>
     </div>
 </footer>

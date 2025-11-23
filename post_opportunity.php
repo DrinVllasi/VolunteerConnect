@@ -8,24 +8,33 @@ if (!isset($_SESSION['logged_in']) || !in_array($_SESSION['role'], ['organizatio
 }
 
 if ($_POST) {
-    $title       = trim($_POST['title']);
-    $description = trim($_POST['description']);
-    $date        = $_POST['date'];
-    $time        = $_POST['time'] ?: null;
-    $location    = trim($_POST['location_name']);
-    $lat         = $_POST['lat'] ? (float)$_POST['lat'] : null;
-    $lng         = $_POST['lng'] ? (float)$_POST['lng'] : null;
-    $slots       = (int)$_POST['slots'];
+    $title         = trim($_POST['title']);
+    $description   = trim($_POST['description']);
+    $date          = $_POST['date'];
+    $time          = $_POST['time'] ?: null;
+    $location_name = trim($_POST['location_name']);
+    $slots         = (int)$_POST['slots'];
 
-    if ($title && $date && $slots > 0 && $lat && $lng && $location) {
+    // Only required fields
+    if ($title && $description && $date && $slots > 0 && $location_name) {
         $stmt = $conn->prepare("INSERT INTO opportunities 
-            (organization_id, title, description, date, time, location, location_name, latitude, longitude, slots, created_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())");
-        $stmt->execute([$_SESSION['user_id'], $title, $description, $date, $time, $location, $location, $lat, $lng, $slots]);
+            (organization_id, title, description, date, time, location_name, slots, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+
+        $stmt->execute([
+            $_SESSION['user_id'],
+            $title,
+            $description,
+            $date,
+            $time,
+            $location_name,
+            $slots
+        ]);
+
         header("Location: manage_events.php?success=1");
         exit;
     } else {
-        $error = "Please fill all fields and click on the map to set the exact location.";
+        $error = "Please fill all required fields and click on the map to set the location.";
     }
 }
 
@@ -41,7 +50,7 @@ include_once 'includes/header.php';
             <h1 class="display-5 fw-bold text-center mb-4">Post a New Opportunity</h1>
 
             <?php if (isset($error)): ?>
-                <div class="alert alert-danger text-center"><?= $error ?></div>
+                <div class="alert alert-danger text-center"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
 
             <form method="POST" class="card shadow-lg border-0">
@@ -79,9 +88,8 @@ include_once 'includes/header.php';
                             </div>
                         </div>
 
+                        <!-- Only store the address text -->
                         <input type="hidden" name="location_name" id="location_name">
-                        <input type="hidden" name="lat" id="lat">
-                        <input type="hidden" name="lng" id="lng">
 
                         <div class="col-12 text-center mt-4">
                             <button type="submit" class="btn btn-success btn-lg px-5" style="border-radius: 16px;">
@@ -99,7 +107,7 @@ include_once 'includes/header.php';
 let map, marker;
 
 function initMap() {
-    map = L.map('map').setView([42.6629, 21.1655], 12); // Pristina
+    map = L.map('map').setView([42.6629, 21.1655], 12);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors'
@@ -107,54 +115,21 @@ function initMap() {
 
     map.on('click', function(e) {
         if (marker) map.removeLayer(marker);
-        
         marker = L.marker(e.latlng).addTo(map);
-        
-        document.getElementById('lat').value = e.latlng.lat;
-        document.getElementById('lng').value = e.latlng.lng;
 
-        // Reverse geocoding using Nominatim (free)
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}`)
+        // Reverse geocoding to get human-readable address
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.latlng.lat}&lon=${e.latlng.lng}&zoom=18`)
             .then(r => r.json())
             .then(data => {
                 const addr = data.display_name || "Unknown location";
                 document.getElementById('location_name').value = addr;
-                document.getElementById('selected_address').textContent = addr.split(',')[0] + ", " + addr.split(',')[1] + ", " + addr.split(',')[2];
+                document.getElementById('selected_address').textContent = addr.split(',').slice(0, 3).join(', ');
             })
             .catch(() => {
-                document.getElementById('selected_address').textContent = e.latlng.lat.toFixed(6) + ", " + e.latlng.lng.toFixed(6);
-                document.getElementById('location_name').value = "Location at " + e.latlng.lat.toFixed(6) + ", " + e.latlng.lng.toFixed(6);
+                const fallback = `Lat: ${e.latlng.lat.toFixed(6)}, Lng: ${e.latlng.lng.toFixed(6)}`;
+                document.getElementById('location_name').value = fallback;
+                document.getElementById('selected_address').textContent = fallback;
             });
-    });
-
-    // Optional: Add search
-    const searchControl = L.control({position: 'topright'});
-    searchControl.onAdd = function() {
-        const div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-        div.innerHTML = '<input type="text" id="locationSearch" placeholder="Search location..." style="padding:8px; width:200px; border:none; border-radius:4px;">';
-        return div;
-    };
-    searchControl.addTo(map);
-
-    document.getElementById('locationSearch')?.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            const query = e.target.value;
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data[0]) {
-                        const lat = data[0].lat;
-                        const lng = data[0].lon;
-                        map.setView([lat, lng], 15);
-                        if (marker) marker.setLatLng([lat, lng]);
-                        else marker = L.marker([lat, lng]).addTo(map);
-                        document.getElementById('lat').value = lat;
-                        document.getElementById('lng').value = lng;
-                        document.getElementById('location_name').value = data[0].display_name;
-                        document.getElementById('selected_address').textContent = data[0].display_name.split(',')[0];
-                    }
-                });
-        }
     });
 }
 

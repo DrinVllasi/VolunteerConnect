@@ -3,7 +3,6 @@ session_start();
 require_once 'includes/auth_guard.php';
 require_once 'config/config.php';
 
-// Only organization & admin can access
 if (!isset($_SESSION['logged_in']) || !in_array($_SESSION['role'], ['organization', 'admin'])) {
     header('Location: index.php');
     exit();
@@ -13,58 +12,73 @@ include_once 'includes/header.php';
 ?>
 
 <style>
-/* INDEX STYLE CARD */
-.event-card {
-    border: none;
-    border-radius: 20px;
-    padding: 25px;
-    background: #fff;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-    transition: 0.25s ease;
-}
-.event-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 10px 28px rgba(0,0,0,0.12);
-}
-
-/* TABLE STYLE */
-.table-custom th {
-    background: #f7f7f7;
-    font-weight: 600;
-}
-
-.table-custom td, .table-custom th {
-    padding: 14px 16px;
-    vertical-align: middle;
-}
-
-.table-custom tr:hover {
-    background: #fafafa;
-}
-
-/* Buttons & badges */
-.badge {
-    padding: 8px 12px;
-    border-radius: 12px !important;
-}
-.btn-sm {
-    padding: 5px 10px;
-    border-radius: 10px;
-}
+    :root { --accent: #6a8e3a; --accent2: #b27a4b; }
+    .event-card {
+        border: none;
+        border-radius: 20px;
+        padding: 28px;
+        background: #fff;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+        margin-bottom: 2rem;
+    }
+    .event-card:hover {
+        transform: translateY(-6px);
+        box-shadow: 0 16px 38px rgba(0,0,0,0.14);
+    }
+    .table-custom {
+        font-size: 0.95rem;
+    }
+    .table-custom th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #444;
+        border: none;
+        padding: 16px;
+    }
+    .table-custom td {
+        padding: 16px;
+        vertical-align: middle;
+        border-color: #eee;
+    }
+    .table-custom tr:hover {
+        background: #f9fdf6 !important;
+    }
+    .badge {
+        padding: 8px 14px;
+        border-radius: 12px !important;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .btn-sm {
+        border-radius: 10px;
+        font-weight: 600;
+    }
+    .hours-input {
+        width: 90px;
+        text-align: center;
+        border-radius: 10px;
+    }
 </style>
 
 <div class="container my-5">
-    <h1 class="fw-bold mb-4">Manage Events & Volunteers</h1>
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <h1 class="fw-bold display-6">Manage Events & Volunteers</h1>
+        <a href="post_opportunity.php" class="btn btn-success btn-lg shadow-sm">
+            Post New Event
+        </a>
+    </div>
 
     <?php
     $stmt = $conn->prepare("
         SELECT o.*, 
-        (o.slots - COUNT(CASE WHEN a.status='confirmed' THEN 1 END)) AS spots_left
+               (o.slots - COALESCE(COUNT(CASE WHEN a.status = 'confirmed' THEN 1 END), 0)) AS spots_left,
+               COUNT(a.id) AS total_applications
         FROM opportunities o
-        LEFT JOIN applications a ON o.id = a.opportunity_id
+        LEFT JOIN applications a ON o.id = a.opportunity_id AND a.status IN ('pending', 'confirmed')
         WHERE o.organization_id = ?
         GROUP BY o.id
-        ORDER BY o.date DESC
+        ORDER BY o.date DESC, o.created_at DESC
     ");
     $stmt->execute([$_SESSION['user_id']]);
     $events = $stmt->fetchAll();
@@ -72,150 +86,178 @@ include_once 'includes/header.php';
 
     <?php if (empty($events)): ?>
         <div class="text-center py-5">
-            <p class="text-muted">You haven't posted any events yet.</p>
-            <a href="post_opportunity.php" class="btn btn-primary btn-lg">Post Your First Event</a>
+            <div class="py-5">
+                <h3 class="text-muted">No events posted yet</h3>
+                <p class="lead text-muted mb-4">Start making an impact — create your first volunteer opportunity!</p>
+                <a href="post_opportunity.php" class="btn btn-success btn-lg px-5">Post Your First Event</a>
+            </div>
         </div>
     <?php else: ?>
         <?php foreach ($events as $event): ?>
-            <div class="event-card mb-5">
-
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h3 class="fw-bold mb-0"><?= htmlspecialchars($event['title']) ?></h3>
-                    <span class="badge bg-<?= $event['spots_left'] > 0 ? 'success' : 'danger' ?>">
-                        <?= $event['spots_left'] ?>/<?= $event['slots'] ?> spots left
-                    </span>
+            <div class="event-card">
+                <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div>
+                        <h3 class="fw-bold mb-2"><?= htmlspecialchars($event['title']) ?></h3>
+                        <p class="text-muted mb-2">
+                            <i class="bi bi-calendar-event"></i> 
+                            <?= date('l, F j, Y', strtotime($event['date'])) ?>
+                            <?= $event['time'] ? ' • ' . date('g:i A', strtotime($event['time'])) : '' ?>
+                            <br>
+                            <i class="bi bi-geo-alt"></i> <?= htmlspecialchars($event['location_name']) ?>
+                        </p>
+                    </div>
+                    <div class="text-end">
+                        <div class="badge bg-<?= $event['spots_left'] > 0 ? 'success' : 'danger' ?> fs-5 px-4 py-2">
+                            <?= $event['spots_left'] ?> / <?= $event['slots'] ?> spots left
+                        </div>
+                        <div class="mt-2 text-muted small">
+                            <?= $event['total_applications'] ?> application<?= $event['total_applications'] != 1 ? 's' : '' ?>
+                        </div>
+                    </div>
                 </div>
 
-                <p class="text-muted mb-1">
-                    <strong>Date:</strong> 
-                    <?= date('l, F j, Y', strtotime($event['date'])) ?>
-                    <?= $event['time'] ? ' • '.date('g:i A', strtotime($event['time'])) : '' ?>
-                </p>
-                <p class="text-muted mb-4">
-                    <strong>Location:</strong> <?= htmlspecialchars($event['location']) ?>
-                </p>
+                <hr class="my-4">
 
-                <hr>
-
-                <h5 class="fw-bold mb-3">Volunteers</h5>
+                <h5 class="fw-bold mb-4 text-success">Volunteers</h5>
 
                 <?php
                 $apps = $conn->prepare("
-                    SELECT a.*, u.name, u.email
+                    SELECT a.*, u.name, u.email, u.phone
                     FROM applications a
                     JOIN users u ON a.volunteer_id = u.id
                     WHERE a.opportunity_id = ?
-                    ORDER BY a.applied_at DESC
+                    ORDER BY 
+                        a.status = 'pending' DESC,
+                        a.applied_at DESC
                 ");
                 $apps->execute([$event['id']]);
-                $vols = $apps->fetchAll();
+                $volunteers = $apps->fetchAll();
                 ?>
 
-                <?php if (empty($vols)): ?>
-                    <p class="text-muted">No volunteers yet.</p>
+                <?php if (empty($volunteers)): ?>
+                    <div class="text-center py-4 text-muted">
+                        <p class="mb-0">No volunteers have applied yet.</p>
+                    </div>
                 <?php else: ?>
                     <div class="table-responsive">
                         <table class="table table-custom align-middle">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Email</th>
+                                    <th>Volunteer</th>
+                                    <th>Contact</th>
+                                    <th>Applied</th>
                                     <th>Status</th>
                                     <th>Hours</th>
-                                    <th>Approve Hours</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php foreach ($vols as $v): ?>
-                                    <tr id="vol-<?= $v['id'] ?>">
-
-                                        <td><strong><?= htmlspecialchars($v['name']) ?></strong></td>
-                                        <td><?= htmlspecialchars($v['email']) ?></td>
+                                <?php foreach ($volunteers as $v): ?>
+                                    <tr id="row-<?= $v['id'] ?>">
+                                        <td>
+                                            <strong><?= htmlspecialchars($v['name']) ?></strong>
+                                        </td>
+                                        <td>
+                                            <small>
+                                                <?= htmlspecialchars($v['email']) ?><br>
+                                                <?= $v['phone'] ? '<span class="text-muted">'.htmlspecialchars($v['phone']).'</span>' : '' ?>
+                                            </small>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">
+                                                <?= date('M j, Y', strtotime($v['applied_at'])) ?><br>
+                                                <?= date('g:i A', strtotime($v['applied_at'])) ?>
+                                            </small>
+                                        </td>
                                         <td>
                                             <span class="badge 
-                                                <?= $v['status']=='confirmed' ? 'bg-success' :
-                                                   ($v['status']=='cancelled' ? 'bg-secondary' : 'bg-warning text-dark') ?>"
+                                                <?= $v['status'] == 'confirmed' ? 'bg-success' : 
+                                                   ($v['status'] == 'cancelled' ? 'bg-secondary' : 
+                                                   ($v['status'] == 'completed' ? 'bg-info' : 'bg-warning text-dark')) ?>"
                                                 id="status-<?= $v['id'] ?>">
                                                 <?= ucfirst($v['status']) ?>
                                             </span>
                                         </td>
-
                                         <td>
-                                            <input type="number" id="hours-<?= $v['id'] ?>" value="<?= $v['hours_worked'] ?>"
-                                                   class="form-control form-control-sm" style="width:80px; display:inline-block">
-                                            <button class="btn btn-sm btn-outline-primary" onclick="saveHours(<?= $v['id'] ?>)">Save</button>
-                                        </td>
-
-                                        <td>
-                                            <span id="hours-status-<?= $v['id'] ?>">
-                                            <?php if ($v['hours_approved']): ?>
-                                                <span class="badge bg-success">Approved</span>
-                                            <?php elseif ($v['hours_worked'] > 0): ?>
-                                                <button class="btn btn-sm btn-success" onclick="approveHours(<?= $v['id'] ?>)">Approve</button>
+                                            <?php if ($v['status'] == 'completed'): ?>
+                                                <strong class="text-success"><?= $v['hours_worked'] ?>h</strong>
                                             <?php else: ?>
-                                                <span class="text-muted small">—</span>
+                                                <input type="number" step="0.5" min="0" max="24" 
+                                                       class="form-control form-control-sm hours-input"
+                                                       id="hours-<?= $v['id'] ?>"
+                                                       value="<?= $v['hours_worked'] ?? '' ?>"
+                                                       <?= $v['status'] == 'pending' ? 'disabled' : '' ?>>
                                             <?php endif; ?>
-                                            </span>
                                         </td>
-
-                                        <td>
+                                        <td id="actions-<?= $v['id'] ?>">
                                             <?php if ($v['status'] === 'pending'): ?>
-                                                <button class="btn btn-sm btn-success me-1" onclick="updateStatus(<?= $v['id'] ?>,'approve')">Approve</button>
-                                                <button class="btn btn-sm btn-danger" onclick="updateStatus(<?= $v['id'] ?>,'reject')">Reject</button>
+                                                <button class="btn btn-sm btn-success me-2" onclick="updateApp(<?= $v['id'] ?>, 'confirm')">
+                                                    Confirm
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" onclick="updateApp(<?= $v['id'] ?>, 'cancel')">
+                                                    Cancel
+                                                </button>
+
+                                            <?php elseif ($v['status'] === 'confirmed' && $v['hours_approved'] == 0): ?>
+                                                <button class="btn btn-sm btn-primary" onclick="completeAndApprove(<?= $v['id'] ?>)">
+                                                    Complete & Approve Hours
+                                                </button>
+
+                                            <?php elseif ($v['hours_approved'] == 1): ?>
+                                                <span class="text-success fw-bold">Hours Approved</span>
+
                                             <?php else: ?>
-                                                <span class="text-muted small">—</span>
+                                                <span class="text-muted">—</span>
                                             <?php endif; ?>
                                         </td>
-
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
                 <?php endif; ?>
-
             </div>
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
 
+<!-- AJAX Handler -->
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script>
-function updateStatus(appId, action){
-    $.post('ajax_manage.php', {app_id: appId, action: action}, function(response){
-        let statusText = action === 'approve' ? 'Confirmed' : 'Cancelled';
-        let badgeClass = action === 'approve' ? 'bg-success' : 'bg-secondary';
-        $('#status-'+appId).text(statusText).removeClass('bg-warning text-dark bg-success bg-secondary').addClass(badgeClass);
-        // remove buttons
-        $('#vol-'+appId+' td:last-child').html('<span class="text-muted small">—</span>');
-    });
-}
-
-function saveHours(appId){
-    let hours = $('#hours-'+appId).val();
-    $.post('ajax_manage.php', {app_id: appId, hours: hours, save_hours: 1}, function(response){
-        if(response.success){
-            alert('Hours saved!');
+function updateApp(appId, action) {
+    $.post('ajax/org_update_application.php', {
+        app_id: appId,
+        action: action
+    }, function(res) {
+        if (res.success) {
+            location.reload(); // simple & reliable
         } else {
-            alert(response.message || 'Failed to save hours.');
+            alert('Error: ' + (res.message || 'Try again'));
         }
     }, 'json');
 }
 
-function approveHours(appId){
-    $.post('ajax_manage.php', {app_id: appId, approve_hours: 1}, function(response){
-        if(response.success){
-            $('#hours-status-'+appId).html('<span class="badge bg-success">Approved</span>');
+function completeAndApprove(appId) {
+    const hours = $(`#hours-${appId}`).val();
+    if (!hours || hours <= 0) {
+        alert('Please enter hours worked first!');
+        return;
+    }
 
-            // Update the total hours counter dynamically
-            let current = parseInt($('#hoursCounter').text().replace(/,/g,'')) || 0;
-            $('#hoursCounter').text(current + response.hours_approved);
-        } else {
-            alert(response.message || 'Failed to approve hours.');
-        }
-    }, 'json');
+    if (confirm(`Mark as completed and approve ${hours} hours?`)) {
+        $.post('ajax/org_update_application.php', {
+            app_id: appId,
+            action: 'complete',
+            hours: hours
+        }, function(res) {
+            if (res.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + res.message);
+            }
+        }, 'json');
+    }
 }
 </script>
-</body>
-</html>
+
+<?php include 'includes/footer.php'; ?>

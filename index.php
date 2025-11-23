@@ -5,7 +5,15 @@ include_once 'includes/header.php';
 
 // Real-time stats
 $total_volunteers = $conn->query("SELECT COUNT(*) FROM users WHERE role IN ('user','volunteer')")->fetchColumn();
-$total_hours = $conn->query("SELECT COALESCE(SUM(hours_worked),0) FROM applications WHERE hours_approved = 1")->fetchColumn() ?: 0;
+
+// FIXED LINE – REAL verified hours from applications (approved + completed)
+$total_hours_result = $conn->query("
+    SELECT COALESCE(SUM(a.hours_worked), 0) 
+    FROM applications a 
+    WHERE a.status = 'completed' AND a.hours_approved = 1
+");
+$total_hours = (float)$total_hours_result->fetchColumn();   // ← this is the only change (was fake total_hours column)
+
 $total_events = $conn->query("SELECT COUNT(*) FROM opportunities")->fetchColumn();
 
 // Upcoming opportunities
@@ -91,7 +99,7 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
             height: 100%;
             width: 100%;
         }
-        .story-card { background: linear-gradient(180deg,#fff,#fbfaf7); border-radius:12px; padding:1rem; box-shadow: 0 8px 28px rgba(0,0,0,0.05); }
+        .story-card { background: linear Heal-gradient(180deg,#fff,#fbfaf7); border-radius:12px; padding:1rem; box-shadow: 0 8px 28px rgba(0,0,0,0.05); }
         a.btn-custom { 
             border-radius: 12px; 
             padding: .9rem 2.2rem; 
@@ -167,6 +175,30 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
+        .category-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 0.875rem; /* same as btn-sm */
+    font-weight: 400;
+    line-height: 1.5;
+
+    border: 1px solid #6c757d; /* outline-secondary border */
+    color: #6c757d;            /* outline-secondary text */
+
+    border-radius: 6px;
+    cursor: default;
+
+    margin-right: 6px;
+    margin-bottom: 6px;
+
+    user-select: none;
+}
+
+/* Optional: make them react on hover like a button */
+.category-tag:hover {
+    background-color: rgba(108, 117, 125, 0.1);
+}
+
         footer { padding:2.5rem 0; color:var(--muted); font-size:.95rem; }
         .tagline { color: #f3f7ec; text-shadow: 0 3px 18px rgba(0,0,0,0.35); }
         @media (max-width: 767px) {
@@ -208,26 +240,28 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
                     <div class="row text-center mt-3">
                         <div class="col-4">
-                            <div class="fw-bold" style="font-size:1.15rem; color:var(--accent-1)" id="stat-volunteers">0</div>
+                            <div class="fw-bold" style="font-size:1.15rem; color:var(--accent-1)" id="stat-volunteers"><?= number_format($total_volunteers) ?></div>
                             <div class="small text-muted">Volunteers</div>
                         </div>
                         <div class="col-4">
-                            <div class="fw-bold" style="font-size:1.15rem; color:#b27a4b" id="stat-hours">0</div>
+                            <div class="fw-bold" style="font-size:1.15rem; color:#b27a4b" id="stat-hours"><?= number_format($total_hours, 1) ?></div>
                             <div class="small text-muted">Hours</div>
                         </div>
                         <div class="col-4">
-                            <div class="fw-bold" style="font-size:1.15rem; color:#7d7d7d" id="stat-events">0</div>
+                            <div class="fw-bold" style="font-size:1.15rem; color:#7d7d7d" id="stat-events"><?= number_format($total_events) ?></div>
                             <div class="small text-muted">Events</div>
                         </div>
                     </div>
 
                     <hr class="my-3">
-                    <div class="small text-muted">Browse by category</div>
+                    <div class="small text-muted">Choose from different categories like:</div>
                     <div class="mt-2 d-flex gap-2 flex-wrap">
-                        <button class="btn btn-sm btn-outline-secondary">Environment</button>
-                        <button class="btn btn-sm btn-outline-secondary">Education</button>
-                        <button class="btn btn-sm btn-outline-secondary">Health</button>
-                        <button class="btn btn-sm btn-outline-secondary">Community</button>
+                        <h3 class="category-tag">Environment</h3>
+                        <h3 class="category-tag">Education</h3>
+                        <h3 class="category-tag">Health</h3>
+                        <h3 class="category-tag">Community</h3>
+                        <h3 class="category-tag">Animal Care</h3>
+                        <h3 class="category-tag">Arts</h3>
                     </div>
                 </div>
             </div>
@@ -305,7 +339,7 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <?php endif; ?>
 
                 <div class="text-center mt-4">
-                    <a href="public_browse.php" class="btn btn-outline-success btn-lg">View All Opportunities →</a>
+                    <a href="public_browse.php" class="btn btn-outline-success btn-lg">View All Opportunities</a>
                 </div>
             </div>
 
@@ -334,7 +368,7 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <p class="fw-bold">Active Volunteers</p>
             </div>
             <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="100">
-                <div class="stat-number" id="hoursCounter"><?= number_format($total_hours) ?></div>
+                <div class="stat-number" id="hoursCounter"><?= number_format($total_hours, 1) ?></div>
                 <p class="fw-bold">Hours Contributed</p>
             </div>
             <div class="col-md-4 mb-4" data-aos="fade-up" data-aos-delay="200">
@@ -344,9 +378,6 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
         </div>
     </div>
 </section>
-
-
-
 
 <!-- AUTH MODAL (shown when trying to apply while not logged in) -->
 <div class="modal fade" id="authModal" tabindex="-1" aria-labelledby="authModalLabel" aria-hidden="true">
@@ -375,10 +406,7 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
     // Animated counters (CountUp)
     (function(){
         function initCounters() {
-            // Try different ways CountUp might be exposed (UMD version)
             let CountUp;
-            
-            // Check for CountUp in various possible locations
             if (typeof window !== 'undefined') {
                 if (window.CountUp && window.CountUp.CountUp) {
                     CountUp = window.CountUp.CountUp;
@@ -392,7 +420,6 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
             
             if (!CountUp) {
-                // Retry if CountUp not loaded yet (max 10 retries)
                 if (typeof initCounters.retries === 'undefined') {
                     initCounters.retries = 0;
                 }
@@ -406,18 +433,16 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
 
             try {
-                // Main stats counters
-                const vol = new CountUp('volCounter', <?= (int)$total_volunteers ?>, { duration: 1.4, separator: ',' });
-                const hrs = new CountUp('hoursCounter', <?= (int)$total_hours ?>, { duration: 1.4, separator: ',' });
-                const evs = new CountUp('eventsCounter', <?= (int)$total_events ?>, { duration: 1.4, separator: ',' });
+                const vol = new CountUp('volCounter', <?= $total_volunteers ?>, { duration: 1.4, separator: ',' });
+                const hrs = new CountUp('hoursCounter', <?= $total_hours ?>, { duration: 1.4, decimalPlaces: 1, separator: ',' });
+                const evs = new CountUp('eventsCounter', <?= $total_events ?>, { duration: 1.4, separator: ',' });
                 if (vol && !vol.error) vol.start();
                 if (hrs && !hrs.error) hrs.start();
                 if (evs && !evs.error) evs.start();
 
-                // Small summary counters in hero
-                const smallVol = new CountUp('stat-volunteers', <?= (int)$total_volunteers ?>, { duration: 1.2, separator: ',' });
-                const smallHrs = new CountUp('stat-hours', <?= (int)$total_hours ?>, { duration: 1.2, separator: ',' });
-                const smallEvs = new CountUp('stat-events', <?= (int)$total_events ?>, { duration: 1.2, separator: ',' });
+                const smallVol = new CountUp('stat-volunteers', <?= $total_volunteers ?>, { duration: 1.2, separator: ',' });
+                const smallHrs = new CountUp('stat-hours', <?= $total_hours ?>, { duration: 1.2, decimalPlaces: 1, separator: ',' });
+                const smallEvs = new CountUp('stat-events', <?= $total_events ?>, { duration: 1.2, separator: ',' });
                 if (smallVol && !smallVol.error) smallVol.start();
                 if (smallHrs && !smallHrs.error) smallHrs.start();
                 if (smallEvs && !smallEvs.error) smallEvs.start();
@@ -426,12 +451,10 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
             }
         }
         
-        // Wait for CountUp script to load
         window.addEventListener('load', function() {
             setTimeout(initCounters, 100);
         });
         
-        // Also try immediately if already loaded
         if (document.readyState !== 'loading') {
             setTimeout(initCounters, 100);
         }
@@ -439,14 +462,12 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Initialize Leaflet map
     function initMap() {
-        // Check if Leaflet is loaded
         if (typeof L === 'undefined') {
             console.error('Leaflet library not loaded, retrying...');
             setTimeout(initMap, 100);
             return;
         }
 
-        // Check if map element exists
         var mapElement = document.getElementById('map');
         if (!mapElement) {
             console.warn('Map element not found');
@@ -454,39 +475,30 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
         try {
-            // Initialize map
             var map = L.map('map', { 
                 scrollWheelZoom: false,
                 zoomControl: true
-            }).setView([42.6629, 21.1655], 12); // Pristina, Kosovo
+            }).setView([42.6629, 21.1655], 12);
 
-            // Add tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
                 maxZoom: 19
             }).addTo(map);
 
-            // Add markers for opportunities
             var markers = [];
             <?php if (!empty($opportunities)): ?>
                 <?php 
-                // Center coordinates (Pristina, Kosovo)
                 $center_lat = 42.6629;
                 $center_lng = 21.1655;
-                // Radius in degrees (approximately 5km)
                 $radius = 0.05;
                 
                 foreach ($opportunities as $i=>$opp): 
-                    // Generate random coordinates in a circular area around center
-                    // Use opportunity ID for seed to make it consistent per opportunity
                     $seed = crc32($opp['id'] . $opp['title']);
                     mt_srand($seed);
                     
-                    // Random angle and distance for circular distribution
-                    $angle = mt_rand(0, 360) * (M_PI / 180); // Convert to radians
-                    $distance = mt_rand(30, 100) / 100; // Random distance 0.3 to 1.0
+                    $angle = mt_rand(0, 360) * (M_PI / 180);
+                    $distance = mt_rand(30, 100) / 100;
                     
-                    // Calculate lat/lng offset
                     $lat_offset = $distance * $radius * cos($angle);
                     $lng_offset = $distance * $radius * sin($angle);
                     
@@ -502,7 +514,6 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
                     markers.push(marker<?= $i ?>);
                 <?php endforeach; ?>
 
-                // Fit map to show all markers
                 if (markers.length > 0) {
                     var group = new L.featureGroup(markers);
                     if (markers.length > 1) {
@@ -518,17 +529,14 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
     }
 
-    // Wait for page to be fully loaded
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(initMap, 200);
         });
     } else {
-        // DOM is already ready, but wait a bit for scripts to load
         setTimeout(initMap, 200);
     }
     
-    // Fallback: also try on window load
     window.addEventListener('load', function() {
         setTimeout(function() {
             if (document.getElementById('map') && typeof L !== 'undefined' && !window.mapInitialized) {
@@ -550,11 +558,9 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 const button = form.querySelector('.apply-btn');
                 const originalText = button.textContent;
                 
-                // Disable button and show loading state
                 button.disabled = true;
                 button.textContent = 'Applying...';
                 
-                // Send AJAX request
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', form.action, true);
                 xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -565,7 +571,6 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
                             const response = JSON.parse(xhr.responseText);
                             
                             if (response.success) {
-                                // Update button to show applied state
                                 button.textContent = 'You applied! Waiting for response...';
                                 button.classList.remove('btn-success', 'btn-main', 'fw-bold');
                                 button.classList.add('btn-warning');
@@ -574,15 +579,13 @@ $opportunities = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                 button.style.color = 'white';
                                 button.disabled = true;
                                 
-                                // Remove form functionality
                                 form.onsubmit = function(e) { e.preventDefault(); return false; };
                             } else {
-                                // Show error but keep button enabled
                                 alert(response.message);
                                 button.disabled = false;
                                 button.textContent = originalText;
                             }
-                        } catch (e) {
+                        } catch (e) {   
                             console.error('Error parsing response:', e);
                             alert('An error occurred. Please try again.');
                             button.disabled = false;
