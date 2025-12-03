@@ -71,11 +71,18 @@ include_once 'includes/header.php';
 
     <?php
     $stmt = $conn->prepare("
-        SELECT o.*, 
-               (o.slots - COALESCE(COUNT(CASE WHEN a.status = 'confirmed' THEN 1 END), 0)) AS spots_left,
-               COUNT(a.id) AS total_applications
+        SELECT 
+            o.*,
+            (
+                o.slots - COALESCE(
+                    SUM(CASE WHEN a.status IN ('confirmed', 'completed') THEN 1 ELSE 0 END),
+                0)
+            ) AS spots_left,
+            COUNT(a.id) AS total_applications
         FROM opportunities o
-        LEFT JOIN applications a ON o.id = a.opportunity_id AND a.status IN ('pending', 'confirmed')
+        LEFT JOIN applications a 
+            ON o.id = a.opportunity_id
+            AND a.status IN ('pending', 'confirmed', 'completed')
         WHERE o.organization_id = ?
         GROUP BY o.id
         ORDER BY o.date DESC, o.created_at DESC
