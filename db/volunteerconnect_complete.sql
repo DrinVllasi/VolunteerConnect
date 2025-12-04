@@ -86,11 +86,11 @@ CREATE TABLE volunteer_preferences (
 
 -- ==================== INSERT USERS (Only Green Kosovo NGO as org) ====================
 -- Password = password for all
-INSERT IGNORE INTO users (name, email, password, role, status, phone, total_verified_hours) VALUES
+INSERT IGNORE INTO users (name, email, password, role, status, phone) VALUES
 ('Admin', 'admin@volunteer.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'approved', '+38344123456'),
 ('Green Kosovo NGO', 'green@volunteer.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'organization', 'approved', '+38349234567'),
-('Arta Krasniqi', 'arta@volunteer.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'volunteer', 'approved', '+38344123123', 4.5),
-('Donjet Shala', 'donjet@volunteer.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'volunteer', 'approved', '+38344999888', 3);
+('Arta Krasniqi', 'arta@volunteer.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'volunteer', 'approved', '+38344123123'),
+('Donjet Shala', 'donjet@volunteer.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'volunteer', 'approved', '+38344999888');
 
 -- ==================== ALL 10 BEAUTIFUL EVENTS — NOW BY GREEN KOSOVO ONLY ====================
 INSERT INTO opportunities (title, description, category, location_name, latitude, longitude, date, time, slots, filled_slots, organization_id) VALUES
