@@ -107,9 +107,9 @@ INSERT INTO opportunities (title, description, category, location_name, latitude
 
 -- ==================== SAMPLE APPLICATIONS ====================
 INSERT INTO applications (opportunity_id, volunteer_id, status, hours_worked, hours_approved) VALUES
-(1, 3, 'confirmed', 4.50, 1),
+(1, 3, 'completed', 4.50, 1),
 (2, 3, 'pending', 0.00, 0),
-(3, 4, 'confirmed', 3.00, 1),
+(3, 4, 'completed', 3.00, 1),
 (4, 4, 'pending', 0.00, 0),
 (5, 3, 'pending', 0.00, 0);
 
