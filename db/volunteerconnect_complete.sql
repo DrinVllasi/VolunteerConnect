@@ -1,7 +1,7 @@
 -- =====================================================
 -- VOLUNTEERCONNECT – FINAL JUDGE VERSION (November 2025)
 -- ONLY 1 ORGANIZATION: Green Kosovo NGO
--- Everything else stays exactly the same
+-- Everything else stays exactly the same.
 -- =====================================================
 
 CREATE DATABASE IF NOT EXISTS volunteerconnect CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
